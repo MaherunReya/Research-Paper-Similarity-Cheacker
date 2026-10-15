@@ -27,6 +27,16 @@ This writes `data/index.faiss` and `data/papers.jsonl`.
 Try `--limit 5000` first to check everything works (takes a few minutes on CPU).
 If you built the index on another machine, just copy those two files into `backend/data/`.
 
+### Optional: add a second corpus (OpenAlex)
+
+```bash
+python -m scripts.fetch_openalex --mailto you@example.com --max 50000 \
+  --filter "primary_topic.field.display_name:Computer Science,publication_year:2020-2025"
+python -m scripts.build_index --input data/arxiv-metadata-oai-snapshot.json --prefix cs. --limit 100000 --extra data/openalex.jsonl
+```
+
+Duplicates (same title) are skipped. Rebuild the index whenever you add a source.
+
 ## 4. Run the API
 
 ```bash

@@ -27,7 +27,7 @@ class SearchIndex:
                     "categories": p["categories"],
                     "abstract": p["abstract"],
                     "score": round(float(score), 4),
-                    "url": f"https://arxiv.org/abs/{p['id']}",
+                    "url": p.get("url") or f"https://arxiv.org/abs/{p['id']}",
                 }
             )
         return results
