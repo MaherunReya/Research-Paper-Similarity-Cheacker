@@ -228,15 +228,6 @@ These values are estimates. Adjust them using papers you know are related or unr
 - CORS is set to `http://localhost:5173`. Change it in `backend/app/main.py` before deploying elsewhere.
 - In live mode, your abstract is sent to openalex.org. The app itself does not store searches, but check your hosting setup if you deploy it, since servers may log request bodies.
 
-## Roadmap
-
-- Filters by year and category (needs a metadata-aware vector store such as Qdrant or pgvector)
-- Hybrid search: BM25 plus embeddings
-- Cross-encoder reranking of the top results
-- "Why is this similar?" view with the closest sentence pairs
-- Near-duplicate check at sentence level
-- LLM-based problem and method comparison as an optional upgrade
-- Full-text PDF matching
 
 ## Credits and data
 
