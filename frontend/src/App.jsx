@@ -287,7 +287,10 @@ export default function App() {
   useEffect(() => {
     fetch("/api/health")
       .then((r) => r.json())
-      .then((d) => setPapers(d.papers ?? null))
+      .then((d) => {
+        setPapers(d.papers ?? null);
+        if (d.papers === 0) setSource("web"); // no local index yet: start on live search
+      })
       .catch(() => setPapers(null));
   }, []);
 
@@ -346,7 +349,9 @@ export default function App() {
       ? "Checking server"
       : papers === null
         ? "Server not reachable"
-        : `Local index: ${papers.toLocaleString()} papers`;
+        : papers === 0
+          ? "No local index yet"
+          : `Local index: ${papers.toLocaleString()} papers`;
 
   return (
     <div className="shell">

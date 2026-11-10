@@ -13,9 +13,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .embedder import Embedder
+from .envfile import load_env
 from .pdf import extract_title_abstract
 from .roles import split_roles
 from .search import SearchIndex
+
+load_env()  # reads backend/.env (e.g. OPENALEX_API_KEY)
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 MAX_PDF_BYTES = 20 * 1024 * 1024
@@ -29,7 +32,13 @@ state: dict = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     state["embedder"] = Embedder()  # load the model once at startup
-    state["index"] = SearchIndex(DATA_DIR)
+    try:
+        state["index"] = SearchIndex(DATA_DIR)
+    except (FileNotFoundError, RuntimeError):
+        # No local index yet: the server still starts, and live OpenAlex search keeps working.
+        state["index"] = None
+        print("No local index found in backend/data. Build one with scripts.build_index; "
+              "until then only 'OpenAlex (live)' search works.")
     yield
     state.clear()
 
@@ -120,6 +129,11 @@ def web_search(title: str, abstract: str, k: int) -> list[dict]:
 def run_search(title: str, abstract: str, k: int, source: str = "local") -> list[dict]:
     if source == "web":
         return web_search(title, abstract, k)
+    if state.get("index") is None:
+        raise HTTPException(
+            503,
+            "No local index yet. Build one with scripts.build_index, or switch to 'OpenAlex (live)'.",
+        )
     vec = state["embedder"].embed([{"title": title, "abstract": abstract}])[0]
     return state["index"].search(vec, k)
 
@@ -163,7 +177,8 @@ def do_search(title: str, abstract: str, k: int, source: str, roles: bool) -> di
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "papers": len(state["index"].papers)}
+    index = state.get("index")
+    return {"status": "ok", "papers": len(index.papers) if index else 0}
 
 
 @app.post("/api/search")
