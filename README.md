@@ -150,8 +150,8 @@ These labels are estimates, not validated judgments of research equivalence or o
 ### 1. Clone the Repository
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
-cd <YOUR_REPOSITORY_DIRECTORY>
+git clone https://github.com/MaherunReya/Research-Paper-Similarity-Cheacker
+cd Research-Paper-Similarity-Checker
 ```
 
 ### 2. Set Up the Backend
