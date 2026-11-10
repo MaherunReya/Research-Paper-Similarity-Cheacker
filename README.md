@@ -1,173 +1,394 @@
-# Paper Similarity
 
-Find the research papers closest to yours. Paste a title and abstract (or upload a PDF) and get related papers ranked by meaning, not by shared keywords. You can also check whether a result tackles the **same problem** or uses the **same method**.
+# Research Paper Similarity Checker
 
-- **Two search sources:** your own local index (arXiv, optionally OpenAlex) or a live search over all of OpenAlex.
-- **Semantic matching:** abstracts are embedded with [SPECTER2](https://huggingface.co/allenai/specter2_base), a model built for scientific papers, and compared with FAISS.
-- **Problem vs method comparison:** each result is scored separately on problem and method, so "same problem, different method" is visible at a glance.
-- **Plain-language match labels:** Near-duplicate, Closely related, Related, Loosely related, with the raw cosine score shown for reference.
-- **PDF upload:** the title and abstract are extracted for you, and shown so you can correct them.
-- **Light and dark themes**, responsive layout, and a progress animation while searching.
+Discover research papers that are semantically related to your work — beyond simple keyword matching.
 
-## How it works
+Finding relevant literature is an important part of research, but traditional keyword-based searches can miss papers that investigate similar ideas using different terminology. A paper may address the same research problem as yours without sharing many of its keywords. Another may use a similar methodology to solve an entirely different problem.
 
-1. The title and abstract are turned into a 768-dimension vector by SPECTER2 (the `proximity` adapter, meant for nearest-neighbour search).
-2. **Local mode:** FAISS returns the closest vectors from `data/index.faiss`.
-   **Live mode:** the first 1,000 characters of the abstract are sent to OpenAlex's semantic search.
-3. **Optional problem/method comparison:** the abstract is split into problem sentences and method sentences using cue phrases ("remains a challenge", "we propose", and so on). Each part is embedded separately and compared with the same part of every result.
-4. Cosine scores are stretched into a label (see [Tuning](#tuning)), because raw scores cluster between 0.85 and 0.95 even for loosely related papers.
+**Research Paper Similarity Checker** helps explore these connections. Provide a research title and abstract, or upload a PDF, to find related papers ranked by semantic similarity. You can also compare papers based on their research problems and methodologies separately.
 
-## Requirements
+The application supports two search modes:
+- **Local search:** Find similar papers from a locally built collection using SPECTER2 embeddings and FAISS.
+- **OpenAlex search:** Search OpenAlex's live semantic search service for a broader collection of research papers.
+
+## Screenshots
+
+<!-- Add screenshots to the screenshots/ directory using the filenames below. -->
+
+### Search Interface
+
+![Search Interface](screenshots/search-interface.png)
+
+### Similarity Results
+
+![Similarity Results](screenshots/similarity-results.png)
+
+## Features
+
+- **Semantic paper search:** Discover related research using SPECTER2 embeddings rather than relying only on shared keywords.
+- **Two search sources:** Search a locally indexed paper collection or use OpenAlex's live semantic search.
+- **PDF input:** Upload a research paper PDF and automatically extract its title and abstract. Review and correct the extracted text before searching.
+- **Problem and method comparison:** Compare research problems and methodologies separately to identify different kinds of similarity.
+- **Similarity labels:** Results are grouped into Near-duplicate, Closely related, Related, and Loosely related categories based on configurable score thresholds.
+- **Transparent scores:** View raw cosine similarity scores alongside the estimated similarity labels.
+- **Responsive interface:** Supports desktop and mobile layouts.
+- **Light and dark themes:** Switch between themes for a more comfortable reading experience.
+
+## How It Works
+
+The application uses different retrieval mechanisms depending on the selected search source.
+
+### 1. Input Processing
+
+Users can provide a research title and abstract directly or upload a PDF.
+
+For PDF uploads, PyMuPDF extracts the title and abstract. The extracted content is displayed so users can review and correct it before submitting a search.
+
+Abstracts are limited to 400 words.
+
+### 2. Local Semantic Search
+
+Local search uses **SPECTER2**, a scientific document embedding model developed by the Allen Institute for AI.
+
+1. The input abstract is converted into a 768-dimensional embedding using the SPECTER2 `proximity` adapter.
+2. FAISS searches the local vector index for the nearest paper embeddings.
+3. The corresponding paper metadata is retrieved from the local dataset.
+4. Results are ranked by cosine similarity.
+
+The local index is built from arXiv metadata and can optionally include additional OpenAlex data.
+
+### 3. OpenAlex Live Search
+
+The live search option uses OpenAlex's semantic search functionality.
+
+The first 1,000 characters of the submitted abstract are sent to OpenAlex, which returns semantically related research papers.
+
+Unlike local search, this mode does not query the application's FAISS index.
+
+### 4. Problem and Method Comparison
+
+The application can optionally compare research problems and methodologies separately.
+
+This process uses heuristic sentence extraction based on cue phrases commonly found in academic abstracts.
+
+For example:
+- Problem-related phrases: "remains a challenge", "has received considerable attention".
+- Method-related phrases: "we propose", "we introduce", "we employ".
+
+The extracted problem and method sentences are embedded separately and compared with the corresponding sections of each result.
+
+This produces separate problem and method similarity scores, helping distinguish papers that investigate similar problems from those that use similar approaches.
+
+**Note:** Problem and method extraction is heuristic-based. It is not a trained research-contribution classifier, and its output should be interpreted accordingly.
+
+### 5. Similarity Classification
+
+Raw cosine similarity scores are mapped to readable categories using configurable thresholds.
+
+The labels are:
+
+| Label | Meaning |
+|---|---|
+| Near-duplicate | Very high semantic similarity |
+| Closely related | Strong semantic similarity |
+| Related | Moderate semantic similarity |
+| Loosely related | Lower semantic similarity |
+
+The thresholds are configurable because similarity scores can vary across datasets and search sources.
+
+These labels are estimates, not validated judgments of research equivalence or originality.
+
+## Technology Stack
+
+| Component | Technology |
+|---|---|
+| Frontend | React, Vite |
+| Styling | CSS |
+| Backend | Python, FastAPI |
+| Scientific embeddings | SPECTER2 |
+| Vector search | FAISS |
+| PDF extraction | PyMuPDF |
+| External paper search | OpenAlex API |
+| Data sources | arXiv, OpenAlex |
+
+## Project Structure
+
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── main.py          # FastAPI endpoints, live search and scoring
+│   │   ├── embedder.py      # SPECTER2 embedding generation
+│   │   ├── search.py        # FAISS search and metadata retrieval
+│   │   ├── pdf.py           # PDF title and abstract extraction
+│   │   └── roles.py         # Problem and method sentence extraction
+│   │
+│   ├── scripts/
+│   │   ├── build_index.py   # Builds the local FAISS index
+│   │   └── fetch_openalex.py# Downloads OpenAlex metadata
+│   │
+│   └── data/                # Local datasets and generated index
+│
+└── frontend/
+    ├── src/
+    │   ├── App.jsx
+    │   ├── styles.css
+    │   └── main.jsx
+    └── index.html
+```
+
+## Getting Started
+
+### Prerequisites
 
 - Python 3.10 or newer
 - Node.js 18 or newer
-- A GPU is optional, but strongly recommended for building a large index (Kaggle or Colab works)
-- A free [OpenAlex API key](https://openalex.org/settings/api), needed for live search and for downloading OpenAlex data
+- Git
+- A GPU is optional but recommended when building a large local index.
+- A free OpenAlex API key is required for live search and downloading OpenAlex data.
 
-## Project structure
+### 1. Clone the Repository
 
-```
-backend/
-  app/
-    main.py        FastAPI app: endpoints, OpenAlex live search, problem/method scoring
-    embedder.py    SPECTER2 embedder (shared by the API and the index builder)
-    search.py      FAISS index + metadata lookup
-    pdf.py         Title/abstract extraction from PDFs (PyMuPDF)
-    roles.py       Splits an abstract into problem and method parts
-  scripts/
-    build_index.py     Builds data/index.faiss and data/papers.jsonl
-    fetch_openalex.py  Downloads OpenAlex metadata into data/openalex.jsonl
-  data/                Git-ignored: raw datasets and the built index live here
-frontend/
-  src/App.jsx, styles.css, main.jsx
-  index.html
+```bash
+git clone <YOUR_REPOSITORY_URL>
+cd <YOUR_REPOSITORY_DIRECTORY>
 ```
 
-## Setup
-
-### 1. Backend
+### 2. Set Up the Backend
 
 ```bash
 cd backend
+
 python -m venv .venv
 ```
 
-Activate the environment:
+Activate the virtual environment.
 
-| OS | Command |
-|---|---|
-| Windows (cmd) | `.venv\Scripts\activate` |
-| Windows (PowerShell) | `.venv\Scripts\Activate.ps1` |
-| macOS / Linux | `source .venv/bin/activate` |
+**Windows (Command Prompt):**
+
+```bash
+.venv\Scripts\activate
+```
+
+**Windows (PowerShell):**
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+**macOS / Linux:**
+
+```bash
+source .venv/bin/activate
+```
+
+Install the dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Get the data
+### 3. Prepare the Paper Dataset
 
-**arXiv (main corpus).** Download the metadata snapshot from [Kaggle](https://www.kaggle.com/datasets/Cornell-University/arxiv). Kaggle gives you a zip, so extract it and put `arxiv-metadata-oai-snapshot.json` in `backend/data/`.
+The local search feature requires a prebuilt paper index.
 
-**OpenAlex (optional second corpus).** Set your API key, then download computer science papers from 2020 to 2025:
+#### Option A: arXiv Dataset
+
+Download the arXiv metadata snapshot from:
+
+[arXiv Metadata Dataset – Kaggle](https://www.kaggle.com/datasets/Cornell-University/arxiv)
+
+Extract the downloaded archive and place:
+
+```text
+arxiv-metadata-oai-snapshot.json
+```
+
+inside:
+
+```text
+backend/data/
+```
+
+#### Option B: OpenAlex Dataset (Optional)
+
+You can also add OpenAlex metadata to your local collection.
+
+First, obtain an API key from [OpenAlex](https://openalex.org/settings/api).
+
+Set the environment variable:
+
+**Windows (Command Prompt):**
+
+```cmd
+set OPENALEX_API_KEY=your_api_key
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$env:OPENALEX_API_KEY="your_api_key"
+```
+
+**macOS / Linux:**
 
 ```bash
-# Windows cmd:        set OPENALEX_API_KEY=your_key
-# PowerShell:         $env:OPENALEX_API_KEY="your_key"
-# macOS / Linux:      export OPENALEX_API_KEY=your_key
+export OPENALEX_API_KEY=your_api_key
+```
 
+Download computer science papers published between 2020 and 2025:
+
+```bash
 python -m scripts.fetch_openalex --max 50000 --filter "primary_topic.field.id:17,publication_year:2020-2025"
 ```
 
-The filter must use the field **ID** (17 is Computer Science), not its name. Using `primary_topic.field.display_name` returns HTTP 400.
+The field ID `17` represents Computer Science. Use `primary_topic.field.id`, not `primary_topic.field.display_name`, in the filter.
 
-### 3. Build the index
+### 4. Build the Local Search Index
 
-Run from `backend/`. Start small to check everything works (a few minutes on CPU):
+Run the index builder from the `backend/` directory.
+
+For an initial test, build a small index:
 
 ```bash
-python -m scripts.build_index --input data/arxiv-metadata-oai-snapshot.json --prefix cs. --limit 5000
+python -m scripts.build_index \
+  --input data/arxiv-metadata-oai-snapshot.json \
+  --prefix cs. \
+  --limit 5000
 ```
 
-For real use, build a larger and more varied index on a GPU machine:
+For a larger and more varied collection, use:
 
 ```bash
 python -m scripts.build_index \
   --input data/arxiv-metadata-oai-snapshot.json \
   --prefix cs.CV,cs.CL,cs.LG,cs.AI \
-  --min-year 2018 --sample --limit 100000 \
+  --min-year 2018 \
+  --sample \
+  --limit 100000 \
   --extra data/openalex.jsonl
 ```
 
-| Option | What it does |
+#### Index Builder Options
+
+| Option | Description |
 |---|---|
-| `--prefix` | arXiv categories to keep, comma-separated (`cs.` keeps all computer science, `""` keeps everything) |
-| `--min-year` | Skip papers older than this year |
-| `--sample` | Pick a random subset of `--limit` papers instead of the first N |
-| `--limit` | Maximum number of arXiv papers |
-| `--extra` | Extra JSONL files in the same format, such as `data/openalex.jsonl`. Papers with a title already present are skipped |
+| `--input` | Path to the arXiv metadata dataset |
+| `--prefix` | arXiv categories to include, separated by commas |
+| `--min-year` | Excludes papers published before the specified year |
+| `--sample` | Selects a random subset instead of taking the first N papers |
+| `--limit` | Maximum number of arXiv papers to process |
+| `--extra` | Additional JSONL datasets to include, such as OpenAlex metadata |
 
-The output is `data/index.faiss` and `data/papers.jsonl`. If you built the index on another machine, copy only those two files into `backend/data/`. You do not need the raw datasets after that.
+The generated files are:
 
-> **Why `--min-year` and `--sample` matter:** the arXiv snapshot is roughly ordered by date, so the first 5,000 computer science papers are all old. Without these options, a search about a recent topic has nothing close to match and returns unrelated papers.
+```text
+backend/data/
+├── index.faiss
+└── papers.jsonl
+```
 
-**Rebuild the index** whenever you add a data source, change the filters, or change how text is embedded in `embedder.py`. Restart the API afterwards, because it keeps the old index in memory.
+If you build the index on another machine, copy these two files into `backend/data/`.
 
-### 4. Run the API
+**Why use `--min-year` and `--sample`?**
+
+The arXiv metadata snapshot is roughly ordered by submission date. Taking the first few thousand computer science papers may therefore produce a collection dominated by older papers.
+
+Using a publication-year filter and random sampling helps create a more varied collection.
+
+Rebuild the index whenever you change the dataset, filters, or embedding implementation. Restart the API after rebuilding because the running application keeps its loaded index in memory.
+
+### 5. Start the Backend API
+
+From the `backend/` directory:
 
 ```bash
-cd backend
-# set OPENALEX_API_KEY first if you want live search
 uvicorn app.main:app --reload --port 8000
 ```
 
-Open http://localhost:8000/api/health. It should report the number of indexed papers. Interactive docs are at http://localhost:8000/docs.
+The API will be available at:
 
-### 5. Run the frontend
+- Health check: `http://localhost:8000/api/health`
+- Interactive API documentation: `http://localhost:8000/docs`
 
-In a second terminal:
+The health endpoint reports the number of papers available in the local index.
+
+### 6. Start the Frontend
+
+Open another terminal:
 
 ```bash
 cd frontend
+
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173. The dev server forwards `/api` requests to port 8000.
+Open the application:
 
-## Using it
+```text
+http://localhost:5173
+```
+
+The frontend development server forwards `/api` requests to the backend running on port `8000`.
+
+## Using the Application
 
 1. Choose **Paste text** or **Upload PDF**.
-2. Choose where to search: **My index** (fast) or **OpenAlex (live)** (all papers, slower).
-3. Optionally tick **Compare problem and method**. It adds a few seconds.
-4. Click **Find similar papers**.
+2. Provide the research title and abstract, or review the extracted PDF content.
+3. Select a search source:
+   - **My index:** Searches the locally built FAISS index.
+   - **OpenAlex (live):** Uses OpenAlex's semantic search service.
+4. Optionally enable **Compare problem and method**.
+5. Click **Find similar papers**.
+6. Explore the ranked results, similarity scores, and problem/method comparisons.
 
-Abstracts are limited to 400 words. For PDFs, the extracted abstract is trimmed to the same limit.
+## API Reference
 
-## API reference
+The backend exposes the following endpoints.
 
 ### `GET /api/health`
 
-Returns `{"status": "ok", "papers": 104212}`.
+Checks the API and local index status.
 
-### `POST /api/search`
+Example response:
 
 ```json
 {
-  "title": "optional title",
-  "abstract": "at least 20 characters, at most 400 words",
+  "status": "ok",
+  "papers": 104212
+}
+```
+
+The paper count is illustrative and depends on the index built by the user.
+
+### `POST /api/search`
+
+Searches for papers using a provided title and abstract.
+
+Example request:
+
+```json
+{
+  "title": "An optional research title",
+  "abstract": "Your research abstract goes here. It must contain at least 20 characters.",
   "k": 10,
   "source": "local",
   "roles": false
 }
 ```
 
-| Field | Notes |
+| Field | Description |
 |---|---|
-| `k` | 1 to 50 results |
-| `source` | `"local"` or `"web"` |
-| `roles` | `true` adds `problem_score` and `method_score` to each result, plus `query_roles` with the sentences used |
+| `title` | Optional research paper title |
+| `abstract` | Research abstract; at least 20 characters and at most 400 words |
+| `k` | Number of results to return (1–50) |
+| `source` | Search source: `local` or `web` |
+| `roles` | Enables separate problem and method comparison |
 
-Example:
+When `roles` is enabled, results include `problem_score` and `method_score`, along with `query_roles` containing the extracted sentences from the input abstract.
+
+Example using cURL:
 
 ```bash
 curl -X POST http://localhost:8000/api/search \
@@ -175,64 +396,125 @@ curl -X POST http://localhost:8000/api/search \
   -d '{"abstract": "We study how vision-language models revise correct answers after misleading feedback...", "k": 5}'
 ```
 
-Each result contains `id`, `title`, `authors`, `year`, `categories`, `abstract`, `score` (cosine similarity) and `url`.
+Each result contains:
+
+- `id`
+- `title`
+- `authors`
+- `year`
+- `categories`
+- `abstract`
+- `score` — cosine similarity score
+- `url`
 
 ### `POST /api/search-pdf`
 
-Multipart upload with a `file` field (PDF, up to 20 MB). Query parameters: `k`, `source`, `roles`. The response matches `/api/search` and includes the extracted title and abstract under `query`.
+Accepts a PDF upload and extracts its title and abstract before performing a search.
 
-### Errors
+**Request format:** `multipart/form-data`
 
-| Status | Meaning |
+| Parameter | Description |
 |---|---|
-| 400 | The PDF could not be read |
-| 413 | The PDF is larger than 20 MB |
-| 422 | Abstract too short, over 400 words, or no abstract found in the PDF |
-| 502 | OpenAlex returned an error or timed out |
-| 503 | Live search was requested but `OPENALEX_API_KEY` is not set |
+| `file` | PDF file (maximum 20 MB) |
+| `k` | Number of results |
+| `source` | `local` or `web` |
+| `roles` | Enables problem and method comparison |
 
-## Tuning
+The response follows the same structure as `/api/search` and includes the extracted title and abstract under `query`.
 
-These values are estimates. Adjust them using papers you know are related or unrelated.
+### Error Responses
 
-| What | Where | Default |
+| Status | Description |
+|---|---|
+| `400` | PDF could not be read |
+| `413` | Uploaded PDF exceeds 20 MB |
+| `422` | Abstract is too short, exceeds 400 words, or no abstract could be extracted |
+| `502` | OpenAlex returned an error or timed out |
+| `503` | Live search requested without an OpenAlex API key |
+
+## Configuration and Tuning
+
+Similarity labels and problem/method classification thresholds can be adjusted in the source code.
+
+| Configuration | Location | Default |
 |---|---|---|
-| Score-to-label calibration (`floor` is the score an unrelated paper in the same field gets, `dup` is the near-duplicate threshold) | `SCALE` in `frontend/src/App.jsx` | local 0.70 / 0.97, web 0.88 / 0.97 |
-| Problem/method thresholds (Same, Close) | `ROLE` in `frontend/src/App.jsx` | 0.90, 0.80 |
-| Abstract word limit | `MAX_WORDS` in both `backend/app/main.py` and `frontend/src/App.jsx` | 400 |
-| Characters sent to OpenAlex | `WEB_QUERY_CHARS` in `backend/app/main.py`, and `WEB_CHARS` in `frontend/src/App.jsx` | 1000 |
-| Problem and method cue phrases | `METHOD` and `PROBLEM` in `backend/app/roles.py` | |
+| Score-to-label calibration | `frontend/src/App.jsx` (`SCALE`) | Local: 0.70 / 0.97; Web: 0.88 / 0.97 |
+| Problem/method thresholds | `frontend/src/App.jsx` (`ROLE`) | 0.90 / 0.80 |
+| Abstract word limit | `backend/app/main.py`, `frontend/src/App.jsx` (`MAX_WORDS`) | 400 |
+| OpenAlex query length | `backend/app/main.py` (`WEB_QUERY_CHARS`), `frontend/src/App.jsx` (`WEB_CHARS`) | 1000 |
+| Problem/method cue phrases | `backend/app/roles.py` (`METHOD`, `PROBLEM`) | Defined in source |
+
+The score-to-label thresholds are estimates and should be calibrated against papers whose relevance you already understand.
+
+**Important:** Cosine similarity scores are not probabilities, percentages of similarity, or proof that two papers make equivalent research contributions.
 
 ## Troubleshooting
 
-**`FileNotFoundError: data\arxiv-metadata-oai-snapshot.json`.** The file is not where the command expects it. Run `dir data`. Common causes are a zip that was never extracted, the file placed in the wrong folder, or an extra `.json` in the name.
+**`FileNotFoundError: data/arxiv-metadata-oai-snapshot.json`**
 
-**Results look unrelated.** Check the index size at `/api/health`, and rebuild with `--min-year` and `--sample` as described above. Also confirm `index.faiss` and `papers.jsonl` come from the same build.
+Check that the dataset has been extracted and placed in the correct directory:
 
-**A paper in the index does not come back as result #1.** It should, at a very high score. If not, the index and metadata files are from different builds, or the SPECTER2 adapter failed to load. Check the API startup log.
+```text
+backend/data/arxiv-metadata-oai-snapshot.json
+```
 
-**OpenAlex HTTP 400.** Use `primary_topic.field.id:17`, not the field's display name.
+**Search results look unrelated**
 
-**OpenAlex 502 or timeout in live search.** OpenAlex's semantic search sometimes times out on long text. The server retries with shorter queries (1000, 500, then 250 characters). If it still fails, try again later or use the local index.
+- Check the number of indexed papers using `/api/health`.
+- Rebuild the index with appropriate categories and publication-year filters.
+- Confirm that `index.faiss` and `papers.jsonl` were generated from the same build.
 
-**503 "Web search needs an OpenAlex API key".** Set `OPENALEX_API_KEY` in the same terminal that runs `uvicorn`, then restart it.
+**A paper in the index does not appear as the first result**
 
-**"Server not reachable" in the header.** The frontend cannot reach the API. Make sure `uvicorn` is running on port 8000.
+A paper should generally have a very high similarity score against its own embedding. If it does not, check whether the FAISS index and metadata files belong to the same build and whether the SPECTER2 adapter loaded successfully.
+
+**OpenAlex returns HTTP 400**
+
+Check the filter syntax. Use:
+
+```text
+primary_topic.field.id:17
+```
+
+rather than:
+
+```text
+primary_topic.field.display_name
+```
+
+**OpenAlex returns a 502 error or times out**
+
+OpenAlex semantic search may time out on longer queries. The backend retries with shorter query lengths (1,000, 500, and 250 characters). If the request continues to fail, retry later or use local search.
+
+**503: Web search needs an OpenAlex API key**
+
+Set `OPENALEX_API_KEY` in the same terminal used to start the backend, then restart the API.
+
+**Server not reachable**
+
+Ensure the backend is running on port `8000` and the frontend is forwarding `/api` requests correctly.
 
 ## Limitations
 
-- Matching uses **abstracts only**, not full text. Treat results as papers to read, not a verdict on originality or plagiarism.
-- Problem and method splitting uses cue phrases, so abstracts without typical phrasing may show "not found". The extracted parts are shown in the results so you can check them.
-- Cosine scores are compressed, so the labels are estimates. Calibrate them for your own data.
-- The local index only covers what you indexed.
-- CORS is set to `http://localhost:5173`. Change it in `backend/app/main.py` before deploying elsewhere.
-- In live mode, your abstract is sent to openalex.org. The app itself does not store searches, but check your hosting setup if you deploy it, since servers may log request bodies.
+- **Abstract-based matching:** The system compares abstracts rather than full paper content. Relevant details present only in the full text may be missed.
+- **No plagiarism detection:** Semantic similarity does not establish plagiarism, research duplication, or lack of originality.
+- **Heuristic problem/method extraction:** Cue-phrase-based extraction may fail when abstracts use unconventional wording or do not explicitly describe their problem and methodology.
+- **Estimated similarity labels:** The labels depend on configurable thresholds and are not independently validated relevance judgments.
+- **Local collection coverage:** Local search can only retrieve papers included in the generated index.
+- **External service dependency:** Live search depends on OpenAlex availability and a valid API key.
+- **Data privacy:** In live search mode, the submitted abstract is sent to OpenAlex. The application itself does not store searches, but a deployed server may log request bodies depending on its hosting and logging configuration.
+- **Deployment configuration:** CORS is configured for `http://localhost:5173` by default. Update the configuration in `backend/app/main.py` before deploying the frontend elsewhere.
 
+## Credits and Data Sources
 
-## Credits and data
+- **Scientific paper embeddings:** [SPECTER2](https://huggingface.co/allenai/specter2_base) by the Allen Institute for AI.
+- **Research paper metadata:** [arXiv](https://arxiv.org/) and the [arXiv metadata dataset on Kaggle](https://www.kaggle.com/datasets/Cornell-University/arxiv).
+- **Live semantic search and metadata:** [OpenAlex](https://openalex.org/).
+- **Vector similarity search:** [FAISS](https://github.com/facebookresearch/faiss).
+- **PDF processing:** [PyMuPDF](https://pymupdf.readthedocs.io/).
 
-- Embeddings: [SPECTER2](https://huggingface.co/allenai/specter2_base) by the Allen Institute for AI
-- Papers: the [arXiv metadata dataset](https://www.kaggle.com/datasets/Cornell-University/arxiv) and [OpenAlex](https://openalex.org)
-- Vector search: [FAISS](https://github.com/facebookresearch/faiss)
+Please review the terms and conditions of each data source before redistributing datasets or metadata.
 
-Check each data source's terms before redistributing any data.
+---
+
+*Built as a research-oriented semantic search project.*
